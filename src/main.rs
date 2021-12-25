@@ -23,16 +23,10 @@ fn main() {
         .add_startup_system(setup)
         .add_system_set(
             SystemSet::new()
-                .label("State")
-                .with_run_criteria(FixedTimestep::step((TIME_STEP as f64) * 5_f64))
+                .with_run_criteria(FixedTimestep::step((TIME_STEP as f64) * 1_f64))
                 .with_system(collider::ball_collision)
                 .with_system(update_charge_indicator)
-                .with_system(is_ball_still_moving),
-        )
-        .add_system_set(
-            SystemSet::new()
-                .label("Move")
-                .with_run_criteria(FixedTimestep::step(TIME_STEP as f64))
+                .with_system(is_ball_still_moving)
                 .with_system(launch_ball)
                 .with_system(move_the_ball)
                 .with_system(charge_ball)
@@ -207,7 +201,12 @@ fn is_ball_still_moving(
 ) {
     for (ball, moving) in balls.iter() {
         if moving.velocity.distance(Vec2::ZERO) <= 0.1 {
-            commands.entity(ball).remove::<Moving>().insert(ShouldGrow);
+            commands
+                .entity(ball)
+                .remove::<Moving>()
+                .remove::<Name>()
+                .insert(Name::new("Played Ball"))
+                .insert(ShouldGrow);
         }
     }
 }
