@@ -53,18 +53,20 @@ fn setup(mut commands: Commands) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
 
     // Border
-    commands.spawn_bundle(SpriteBundle {
-        transform: Transform {
-            translation: Vec3::new(0.0, -250.0, 0.0),
-            scale: Vec3::new(600.0, 2.0, 1.0),
+    commands
+        .spawn_bundle(SpriteBundle {
+            transform: Transform {
+                translation: Vec3::new(0.0, -250.0, 0.0),
+                scale: Vec3::new(600.0, 2.0, 1.0),
+                ..Default::default()
+            },
+            sprite: Sprite {
+                color: Color::DARK_GREEN,
+                ..Default::default()
+            },
             ..Default::default()
-        },
-        sprite: Sprite {
-            color: Color::DARK_GREEN,
-            ..Default::default()
-        },
-        ..Default::default()
-    });
+        })
+        .insert(Name::new("Border"));
 
     // NewBall
     commands
@@ -84,7 +86,8 @@ fn setup(mut commands: Commands) {
         .insert(NewBall {
             degree: 360.,
             velocity: 1.,
-        });
+        })
+        .insert(Name::new("New Ball"));
 
     //Walls
     // Add walls
@@ -135,6 +138,7 @@ fn launch_ball(
                         Vec2::new(x, y)
                     },
                 })
+                .insert(Name::new("Moving Ball"))
                 .remove::<NewBall>();
         } else {
             info!("No ball for you");

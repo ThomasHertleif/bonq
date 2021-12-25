@@ -45,6 +45,6 @@ pub fn spawn(color: Color, thickness: f32, side: Side, commands: &mut Commands) 
             },
             ..Default::default()
         })
-        .insert(Name::new(format!("SideWall{:?}", side)))
+        .insert(Name::new(format!("Wall Side {:?}", side)))
         .insert(Collider::Solid);
 }
