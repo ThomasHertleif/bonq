@@ -7,6 +7,7 @@ use bevy_inspector_egui::Inspectable;
 #[derive(Debug, Component, Inspectable)]
 pub enum Collider {
     Solid,
+    Sticky,
 }
 
 pub fn ball_collision(
@@ -29,6 +30,10 @@ pub fn ball_collision(
             transform.scale.truncate(),
         );
         if let Some(collision) = collision {
+            if let Collider::Sticky = *collider {
+                break;
+            }
+
             // reflect the ball when it collides
             let mut reflect_x = false;
             let mut reflect_y = false;
