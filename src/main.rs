@@ -1,8 +1,8 @@
+use bevy::{core::FixedTimestep, prelude::*};
+use bevy_inspector_egui::{Inspectable, WorldInspectorPlugin};
 use std::f32::consts::PI;
 
-use bevy::{core::FixedTimestep, prelude::*};
-
-use bevy_inspector_egui::{Inspectable, WorldInspectorPlugin};
+mod wall;
 
 const TIME_STEP: f32 = 1.0 / 60.0;
 
@@ -50,6 +50,7 @@ struct Moving {
 fn setup(mut commands: Commands) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
 
+    // Border
     commands.spawn_bundle(SpriteBundle {
         transform: Transform {
             translation: Vec3::new(0.0, -250.0, 0.0),
@@ -63,6 +64,7 @@ fn setup(mut commands: Commands) {
         ..Default::default()
     });
 
+    // NewBall
     commands
         .spawn_bundle(SpriteBundle {
             transform: Transform {
@@ -81,6 +83,35 @@ fn setup(mut commands: Commands) {
             degree: 360.,
             velocity: 1.,
         });
+
+    //Walls
+    // Add walls
+    let wall_thickness = 10.0;
+
+    wall::spawn(
+        Color::YELLOW,
+        wall_thickness,
+        wall::Side::Top,
+        &mut commands,
+    );
+    wall::spawn(
+        Color::RED,
+        wall_thickness,
+        wall::Side::Bottom,
+        &mut commands,
+    );
+    wall::spawn(
+        Color::ORANGE,
+        wall_thickness,
+        wall::Side::Left,
+        &mut commands,
+    );
+    wall::spawn(
+        Color::ORANGE_RED,
+        wall_thickness,
+        wall::Side::Right,
+        &mut commands,
+    );
 }
 
 fn launch_ball(
