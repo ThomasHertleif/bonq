@@ -1,5 +1,7 @@
 use bevy::prelude::*;
 
+use crate::collider::Collider;
+
 #[derive(Debug)]
 pub enum Side {
     Top,
@@ -43,6 +45,6 @@ pub fn spawn(color: Color, thickness: f32, side: Side, commands: &mut Commands) 
             },
             ..Default::default()
         })
-        .insert(Name::new(format!("SideWall{:?}", side)));
-    // .insert(Collider::Solid);
+        .insert(Name::new(format!("SideWall{:?}", side)))
+        .insert(Collider::Solid);
 }

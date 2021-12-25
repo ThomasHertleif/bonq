@@ -2,6 +2,7 @@ use bevy::{core::FixedTimestep, prelude::*};
 use bevy_inspector_egui::{Inspectable, WorldInspectorPlugin};
 use std::f32::consts::PI;
 
+mod collider;
 mod wall;
 
 const TIME_STEP: f32 = 1.0 / 60.0;
@@ -23,7 +24,8 @@ fn main() {
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(TIME_STEP as f64))
                 .with_system(launch_ball)
-                .with_system(move_the_ball),
+                .with_system(move_the_ball)
+                .with_system(collider::ball_collision),
         )
         .run();
 }
@@ -43,7 +45,7 @@ struct StickyBall {
 }
 
 #[derive(Component, Inspectable, Default)]
-struct Moving {
+pub struct Moving {
     velocity: Vec2,
 }
 
