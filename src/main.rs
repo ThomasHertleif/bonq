@@ -1,6 +1,5 @@
 use bevy::{core::FixedTimestep, prelude::*};
 use bevy_inspector_egui::{Inspectable, WorldInspectorPlugin};
-use std::f32::consts::PI;
 
 mod collider;
 mod wall;
@@ -20,6 +19,7 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugin(WorldInspectorPlugin::new())
         .register_type::<Moving>()
+        .register_type::<NewBall>()
         .add_startup_system(setup)
         .add_system_set(
             SystemSet::new()
@@ -42,7 +42,8 @@ fn main() {
 #[derive(Component, Inspectable)]
 struct Ball;
 
-#[derive(Component, Inspectable, Default)]
+#[derive(Component, Inspectable, Default, Reflect)]
+#[reflect(Component)]
 struct NewBall {
     degree: f32,
     velocity: f32,
@@ -96,7 +97,7 @@ fn setup(mut commands: Commands) {
         })
         .insert(Ball)
         .insert(NewBall {
-            degree: 360.,
+            degree: 90.,
             velocity: 10.,
         })
         .insert(Name::new("New Ball"));
@@ -151,6 +152,7 @@ fn setup(mut commands: Commands) {
 }
 
 const MAX_VELOCITY: f32 = 25.;
+const MIN_VELOCITY: f32 = 10.;
 
 fn update_charge_indicator(
     mut indicator: Query<(&mut Transform, &mut Sprite, &mut Visibility), With<TargetAngle>>,
@@ -168,8 +170,8 @@ fn update_charge_indicator(
         }
     };
 
-    transform.rotation = Quat::from_rotation_z(*degree);
-    sprite.color = Color::hsl(velocity / MAX_VELOCITY, 0.8, 0.8);
+    transform.rotation = Quat::from_rotation_z(degree.to_radians());
+    sprite.color = Color::hsl(velocity / MAX_VELOCITY * 360., 0.8, 0.8);
 }
 
 fn charge_ball(keyboard_input: Res<Input<KeyCode>>, mut ball: Query<(&mut NewBall,)>) {
@@ -184,8 +186,8 @@ fn charge_ball(keyboard_input: Res<Input<KeyCode>>, mut ball: Query<(&mut NewBal
         }
     };
 
-    ball.degree = (ball.degree + 0.1) % 360.;
-    ball.velocity = (ball.velocity + 0.1) % MAX_VELOCITY;
+    ball.degree = (ball.degree + 1.) % 180.;
+    ball.velocity = ((ball.velocity + 0.1) % MAX_VELOCITY).max(MIN_VELOCITY);
 }
 
 fn launch_ball(
@@ -208,13 +210,7 @@ fn launch_ball(
     commands
         .entity(new_ball)
         .insert(Moving {
-            velocity: {
-                let radians = degree / (180. * PI);
-                let x = radians.cos() * velocity;
-                let y = radians.sin() * velocity;
-
-                Vec2::new(x, y)
-            },
+            velocity: shoot(*degree, *velocity),
         })
         .insert(collider::Collider::Sticky)
         .insert(Name::new("Moving Ball"))
@@ -229,4 +225,27 @@ fn move_the_ball(mut balls: Query<(&mut Transform, &mut Moving), (With<Moving>, 
         moving.velocity.x = (moving.velocity.x - 0.1).max(0.);
         moving.velocity.y = (moving.velocity.y - 0.1).max(0.);
     }
+}
+
+fn shoot(angle: f32, velocity: f32) -> Vec2 {
+    let radians = angle.to_radians();
+    let x = -1. * radians.cos() * velocity;
+    let y = radians.sin() * velocity;
+
+    Vec2::new(x, y)
+}
+
+#[test]
+fn test_shoot() {
+    let vec = shoot(0., 1.);
+    assert!(vec.x - -1. <= f32::EPSILON);
+    assert!(vec.y - 0. <= f32::EPSILON);
+
+    let vec = shoot(90., 1.);
+    assert!(vec.x - 0. <= f32::EPSILON);
+    assert!(vec.y - 1. <= f32::EPSILON);
+
+    let vec = shoot(180., 1.);
+    assert!(vec.x - 1. <= f32::EPSILON);
+    assert!(vec.y - 0. <= f32::EPSILON);
 }
