@@ -26,7 +26,8 @@ fn main() {
                 .label("State")
                 .with_run_criteria(FixedTimestep::step((TIME_STEP as f64) * 5_f64))
                 .with_system(collider::ball_collision)
-                .with_system(update_charge_indicator),
+                .with_system(update_charge_indicator)
+                .with_system(is_ball_still_moving),
         )
         .add_system_set(
             SystemSet::new()
@@ -34,7 +35,8 @@ fn main() {
                 .with_run_criteria(FixedTimestep::step(TIME_STEP as f64))
                 .with_system(launch_ball)
                 .with_system(move_the_ball)
-                .with_system(charge_ball),
+                .with_system(charge_ball)
+                .with_system(spawn_new_ball),
         )
         .run();
 }
@@ -51,6 +53,9 @@ struct NewBall {
 
 #[derive(Component)]
 struct TargetAngle;
+
+#[derive(Component)]
+struct ShouldGrow;
 
 #[derive(Component, Inspectable, Default)]
 struct StickyBall {
@@ -80,27 +85,6 @@ fn setup(mut commands: Commands) {
             ..Default::default()
         })
         .insert(Name::new("Border"));
-
-    // NewBall
-    commands
-        .spawn_bundle(SpriteBundle {
-            transform: Transform {
-                translation: Vec3::new(0.0, -300.0, 0.0),
-                scale: Vec3::new(10.0, 10.0, 1.0),
-                ..Default::default()
-            },
-            sprite: Sprite {
-                color: Color::LIME_GREEN,
-                ..Default::default()
-            },
-            ..Default::default()
-        })
-        .insert(Ball)
-        .insert(NewBall {
-            degree: 90.,
-            velocity: 10.,
-        })
-        .insert(Name::new("New Ball"));
 
     // Target angle
     commands
@@ -217,6 +201,17 @@ fn launch_ball(
         .remove::<NewBall>();
 }
 
+fn is_ball_still_moving(
+    balls: Query<(Entity, &Moving), (With<Moving>, With<Ball>)>,
+    mut commands: Commands,
+) {
+    for (ball, moving) in balls.iter() {
+        if moving.velocity.distance(Vec2::ZERO) <= 0.1 {
+            commands.entity(ball).remove::<Moving>().insert(ShouldGrow);
+        }
+    }
+}
+
 fn move_the_ball(mut balls: Query<(&mut Transform, &mut Moving), (With<Moving>, With<Ball>)>) {
     for (mut transform, mut moving) in balls.iter_mut() {
         transform.translation.x += moving.velocity.x;
@@ -224,6 +219,33 @@ fn move_the_ball(mut balls: Query<(&mut Transform, &mut Moving), (With<Moving>, 
 
         moving.velocity.x = (moving.velocity.x - 0.1).max(0.);
         moving.velocity.y = (moving.velocity.y - 0.1).max(0.);
+    }
+}
+
+fn spawn_new_ball(
+    all_good: Query<(Entity,), (Or<(With<NewBall>, With<Moving>)>, With<Ball>)>,
+    mut commands: Commands,
+) {
+    if all_good.is_empty() {
+        commands
+            .spawn_bundle(SpriteBundle {
+                transform: Transform {
+                    translation: Vec3::new(0.0, -300.0, 0.0),
+                    scale: Vec3::new(10.0, 10.0, 1.0),
+                    ..Default::default()
+                },
+                sprite: Sprite {
+                    color: Color::LIME_GREEN,
+                    ..Default::default()
+                },
+                ..Default::default()
+            })
+            .insert(Ball)
+            .insert(NewBall {
+                degree: 90.,
+                velocity: 10.,
+            })
+            .insert(Name::new("New Ball"));
     }
 }
 
