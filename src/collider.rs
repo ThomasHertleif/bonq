@@ -2,9 +2,8 @@ use bevy::{
     prelude::*,
     sprite::collide_aabb::{collide, Collision},
 };
-use bevy_inspector_egui::Inspectable;
 
-#[derive(Debug, Component, Inspectable)]
+#[derive(Debug, Component)]
 pub enum Collider {
     Solid,
     Sticky,

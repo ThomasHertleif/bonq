@@ -1,7 +1,7 @@
 use bevy::{core::FixedTimestep, prelude::*};
-use bevy_inspector_egui::{Inspectable, WorldInspectorPlugin};
+use heron::{prelude::*, rapier_plugin::rapier2d::prelude::RigidBodyDamping};
 
-mod collider;
+// mod collider;
 mod wall;
 
 const TIME_STEP: f32 = 1.0 / 60.0;
@@ -17,28 +17,27 @@ fn main() {
         })
         .insert_resource(ClearColor(Color::MIDNIGHT_BLUE))
         .add_plugins(DefaultPlugins)
-        .add_plugin(WorldInspectorPlugin::new())
+        .add_plugin(PhysicsPlugin::default())
         .register_type::<Moving>()
         .register_type::<NewBall>()
         .add_startup_system(setup)
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step((TIME_STEP as f64) * 1_f64))
-                .with_system(collider::ball_collision)
                 .with_system(update_charge_indicator)
                 .with_system(is_ball_still_moving)
                 .with_system(launch_ball)
-                .with_system(move_the_ball)
+                // .with_system(move_the_ball)
                 .with_system(charge_ball)
                 .with_system(spawn_new_ball),
         )
         .run();
 }
 
-#[derive(Component, Inspectable)]
+#[derive(Component)]
 struct Ball;
 
-#[derive(Component, Inspectable, Default, Reflect)]
+#[derive(Component, Default, Reflect)]
 #[reflect(Component)]
 struct NewBall {
     degree: f32,
@@ -51,15 +50,13 @@ struct TargetAngle;
 #[derive(Component)]
 struct ShouldGrow;
 
-#[derive(Component, Inspectable, Default)]
+#[derive(Component, Default)]
 struct StickyBall {
     size: f32,
 }
 
-#[derive(Component, Inspectable, Default, Reflect)]
-pub struct Moving {
-    velocity: Vec2,
-}
+#[derive(Component, Default, Reflect)]
+pub struct Moving;
 
 fn setup(mut commands: Commands) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
@@ -68,7 +65,7 @@ fn setup(mut commands: Commands) {
     commands
         .spawn_bundle(SpriteBundle {
             transform: Transform {
-                translation: Vec3::new(0.0, -250.0, 0.0),
+                translation: Vec3::new(0.0, -250.0, 1.0),
                 scale: Vec3::new(600.0, 2.0, 1.0),
                 ..Default::default()
             },
@@ -84,7 +81,7 @@ fn setup(mut commands: Commands) {
     commands
         .spawn_bundle(SpriteBundle {
             transform: Transform {
-                translation: Vec3::new(0.0, -300.0, 0.0),
+                translation: Vec3::new(0.0, -300.0, 1.0),
                 scale: Vec3::new(50.0, 5.0, 1.0),
                 rotation: Quat::from_rotation_x(0.),
                 ..Default::default()
@@ -127,10 +124,28 @@ fn setup(mut commands: Commands) {
         wall::Side::Right,
         &mut commands,
     );
+
+    // Le ground
+    // commands
+    //     .spawn_bundle(SpriteBundle {
+    //         sprite: Sprite {
+    //             color: Color::DARK_GRAY,
+    //             ..Default::default()
+    //         },
+    //         transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0))
+    //             .with_scale(Vec3::new(600., 800., 1.0)),
+    //         ..Default::default()
+    //     })
+    //     .insert(RigidBody::Static)
+    //     .insert(PhysicMaterial {
+    //         friction: 50.,
+    //         ..Default::default()
+    //     });
 }
 
-const MAX_VELOCITY: f32 = 25.;
-const MIN_VELOCITY: f32 = 10.;
+const MAX_VELOCITY: f32 = 400.;
+const MIN_VELOCITY: f32 = 20.;
+const FRICTION: f32 = 0.5;
 
 fn update_charge_indicator(
     mut indicator: Query<(&mut Transform, &mut Sprite, &mut Visibility), With<TargetAngle>>,
@@ -165,7 +180,40 @@ fn charge_ball(keyboard_input: Res<Input<KeyCode>>, mut ball: Query<(&mut NewBal
     };
 
     ball.degree = (ball.degree + 1.) % 180.;
-    ball.velocity = ((ball.velocity + 0.1) % MAX_VELOCITY).max(MIN_VELOCITY);
+    ball.velocity = ((ball.velocity + 1.) % MAX_VELOCITY).max(MIN_VELOCITY);
+}
+
+fn spawn_new_ball(
+    all_good: Query<(Entity,), (Or<(With<NewBall>, With<Moving>)>, With<Ball>)>,
+    mut commands: Commands,
+) {
+    if all_good.is_empty() {
+        commands
+            .spawn_bundle(SpriteBundle {
+                transform: Transform {
+                    translation: Vec3::new(0.0, -300.0, 1.0),
+                    scale: Vec3::new(10.0, 10.0, 1.0),
+                    ..Default::default()
+                },
+                sprite: Sprite {
+                    color: Color::LIME_GREEN,
+                    ..Default::default()
+                },
+                ..Default::default()
+            })
+            .insert(CollisionShape::Sphere { radius: 5. })
+            .insert(RigidBody::Dynamic)
+            .insert(PhysicMaterial {
+                restitution: 0.7,
+                ..Default::default()
+            })
+            .insert(Ball)
+            .insert(NewBall {
+                degree: 90.,
+                velocity: 10.,
+            })
+            .insert(Name::new("New Ball"));
+    }
 }
 
 fn launch_ball(
@@ -187,73 +235,41 @@ fn launch_ball(
     info!("very good ball");
     commands
         .entity(new_ball)
-        .insert(Moving {
-            velocity: shoot(*degree, *velocity),
-        })
-        .insert(collider::Collider::Sticky)
+        .insert(Moving)
+        .insert(RigidBody::Dynamic)
+        .insert(Velocity::from_linear(shoot(*degree, *velocity)))
+        .insert(Acceleration::from_linear(shoot(*degree, -1.0)))
         .insert(Name::new("Moving Ball"))
         .remove::<NewBall>();
 }
 
 fn is_ball_still_moving(
-    balls: Query<(Entity, &Moving), (With<Moving>, With<Ball>)>,
+    mut balls: Query<(Entity, &mut Velocity), (With<Moving>, With<Ball>)>,
     mut commands: Commands,
 ) {
-    for (ball, moving) in balls.iter() {
-        if moving.velocity.distance(Vec2::ZERO) <= 0.1 {
+    for (ball, mut velocity) in balls.iter_mut() {
+        if velocity.linear.distance(Vec3::ZERO) <= 0.1 {
             commands
                 .entity(ball)
                 .remove::<Moving>()
+                .insert(Velocity::from_linear(Vec3::ZERO))
+                .remove::<Acceleration>()
                 .remove::<Name>()
                 .insert(Name::new("Played Ball"))
                 .insert(ShouldGrow);
+        } else {
+            velocity.linear.x = (velocity.linear.x - FRICTION).max(0.);
+            velocity.linear.y = (velocity.linear.y - FRICTION).max(0.);
         }
     }
 }
 
-fn move_the_ball(mut balls: Query<(&mut Transform, &mut Moving), (With<Moving>, With<Ball>)>) {
-    for (mut transform, mut moving) in balls.iter_mut() {
-        transform.translation.x += moving.velocity.x;
-        transform.translation.y += moving.velocity.y;
-
-        moving.velocity.x = (moving.velocity.x - 0.1).max(0.);
-        moving.velocity.y = (moving.velocity.y - 0.1).max(0.);
-    }
-}
-
-fn spawn_new_ball(
-    all_good: Query<(Entity,), (Or<(With<NewBall>, With<Moving>)>, With<Ball>)>,
-    mut commands: Commands,
-) {
-    if all_good.is_empty() {
-        commands
-            .spawn_bundle(SpriteBundle {
-                transform: Transform {
-                    translation: Vec3::new(0.0, -300.0, 0.0),
-                    scale: Vec3::new(10.0, 10.0, 1.0),
-                    ..Default::default()
-                },
-                sprite: Sprite {
-                    color: Color::LIME_GREEN,
-                    ..Default::default()
-                },
-                ..Default::default()
-            })
-            .insert(Ball)
-            .insert(NewBall {
-                degree: 90.,
-                velocity: 10.,
-            })
-            .insert(Name::new("New Ball"));
-    }
-}
-
-fn shoot(angle: f32, velocity: f32) -> Vec2 {
+fn shoot(angle: f32, velocity: f32) -> Vec3 {
     let radians = angle.to_radians();
     let x = -1. * radians.cos() * velocity;
     let y = radians.sin() * velocity;
 
-    Vec2::new(x, y)
+    Vec3::new(x, y, 1.)
 }
 
 #[test]
