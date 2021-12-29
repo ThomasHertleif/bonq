@@ -6,12 +6,22 @@ mod wall;
 
 const TIME_STEP: f32 = 1.0 / 60.0;
 
+const WIDTH: f32 = 600.;
+const HEIGHT: f32 = 800.;
+
+const MAX_VELOCITY: f32 = 400.;
+const MIN_VELOCITY: f32 = 20.;
+const FRICTION: f32 = 0.5;
+
+const START_ANGLE: f32 = 90.;
+const START_VELOCITY: f32 = 10.;
+
 fn main() {
     App::new()
         .insert_resource(WindowDescriptor {
             title: "bonq".to_string(),
-            width: 600.,
-            height: 800.,
+            width: WIDTH,
+            height: HEIGHT,
             vsync: true,
             ..Default::default()
         })
@@ -66,7 +76,7 @@ fn setup(mut commands: Commands) {
         .spawn_bundle(SpriteBundle {
             transform: Transform {
                 translation: Vec3::new(0.0, -250.0, 1.0),
-                scale: Vec3::new(600.0, 2.0, 1.0),
+                scale: Vec3::new(WIDTH, 2.0, 1.0),
                 ..Default::default()
             },
             sprite: Sprite {
@@ -76,25 +86,6 @@ fn setup(mut commands: Commands) {
             ..Default::default()
         })
         .insert(Name::new("Border"));
-
-    // Target angle
-    commands
-        .spawn_bundle(SpriteBundle {
-            transform: Transform {
-                translation: Vec3::new(0.0, -300.0, 1.0),
-                scale: Vec3::new(50.0, 5.0, 1.0),
-                rotation: Quat::from_rotation_x(0.),
-                ..Default::default()
-            },
-            sprite: Sprite {
-                color: Color::hsl(0., 0.8, 0.5),
-                ..Default::default()
-            },
-            visibility: Visibility { is_visible: false },
-            ..Default::default()
-        })
-        .insert(TargetAngle)
-        .insert(Name::new("Target Angle"));
 
     //Walls
     // Add walls
@@ -143,27 +134,22 @@ fn setup(mut commands: Commands) {
     //     });
 }
 
-const MAX_VELOCITY: f32 = 400.;
-const MIN_VELOCITY: f32 = 20.;
-const FRICTION: f32 = 0.5;
-
 fn update_charge_indicator(
-    mut indicator: Query<(&mut Transform, &mut Sprite, &mut Visibility), With<TargetAngle>>,
-    ball: Query<(&NewBall,)>,
+    mut indicator: Query<(&mut Sprite,), With<TargetAngle>>,
+    mut ball: Query<(&mut Transform, &NewBall)>,
 ) {
-    let (mut transform, mut sprite, mut visibility) = indicator.single_mut();
-    let (NewBall { degree, velocity },) = match ball.get_single() {
-        Ok(q) => {
-            visibility.is_visible = true;
-            q
-        }
-        Err(e) => {
-            visibility.is_visible = false;
+    let (mut sprite,) = match indicator.get_single_mut() {
+        Ok(q) => q,
+        Err(_e) => return,
+    };
+    let (mut transform, NewBall { degree, velocity }) = match ball.get_single_mut() {
+        Ok(q) => q,
+        Err(_e) => {
             return;
         }
     };
 
-    transform.rotation = Quat::from_rotation_z(degree.to_radians());
+    transform.rotation = Quat::from_rotation_z((degree + 90.).to_radians());
     sprite.color = Color::hsl(velocity / MAX_VELOCITY * 360., 0.8, 0.8);
 }
 
@@ -193,6 +179,7 @@ fn spawn_new_ball(
                 transform: Transform {
                     translation: Vec3::new(0.0, -300.0, 1.0),
                     scale: Vec3::new(10.0, 10.0, 1.0),
+                    rotation: Quat::from_rotation_z(START_ANGLE.to_radians()),
                     ..Default::default()
                 },
                 sprite: Sprite {
@@ -209,10 +196,27 @@ fn spawn_new_ball(
             })
             .insert(Ball)
             .insert(NewBall {
-                degree: 90.,
-                velocity: 10.,
+                degree: START_ANGLE,
+                velocity: START_VELOCITY,
             })
-            .insert(Name::new("New Ball"));
+            .insert(Name::new("New Ball"))
+            .with_children(|children| {
+                children
+                    .spawn_bundle(SpriteBundle {
+                        transform: Transform {
+                            translation: Vec3::new(0.0, -5.0, 1.0),
+                            scale: Vec3::new(0.5, 2.0, 1.0),
+                            ..Default::default()
+                        },
+                        sprite: Sprite {
+                            color: Color::hsla(0., 0., 0., 0.),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    })
+                    .insert(TargetAngle)
+                    .insert(Name::new("Target Angle"));
+            });
     }
 }
 
@@ -240,7 +244,8 @@ fn launch_ball(
         .insert(Velocity::from_linear(shoot(*degree, *velocity)))
         .insert(Acceleration::from_linear(shoot(*degree, -1.0)))
         .insert(Name::new("Moving Ball"))
-        .remove::<NewBall>();
+        .remove::<NewBall>()
+        .despawn_descendants();
 }
 
 fn is_ball_still_moving(
@@ -265,7 +270,7 @@ fn is_ball_still_moving(
 }
 
 fn shoot(angle: f32, velocity: f32) -> Vec3 {
-    let radians = angle.to_radians();
+    let radians = (angle).to_radians();
     let x = -1. * radians.cos() * velocity;
     let y = radians.sin() * velocity;
 
